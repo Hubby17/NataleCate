@@ -119,7 +119,7 @@
     <!-- Schermata iniziale -->
     <div id="startScreen">
         <h1>🎅 Cattura i Regali! 🎁</h1>
-        <p style="font-size:2em;">Clicca o tocca i pacchi regalo che cadono!<br>Raccogline <strong>20</strong> in <strong>15 secondi</strong> per vedere Babbo Natale!</p>
+        <p style="font-size:2em;">Clicca o tocca i pacchi regalo che cadono!<br>Raccogline <strong>25</strong> in <strong>15 secondi</strong> per vedere Babbo Natale!</p>
         <button onclick="startGame()">Inizia il Gioco! 🎄</button>
     </div>
 
@@ -169,7 +169,7 @@
         let score = 0;
         let timeLeft = 15;
         let gameInterval, timerInterval;
-        const goal = 20;  // <-- 20 regali da raccogliere
+        const goal = 25;  // <-- 20 regali da raccogliere
 
         function startGame() {
             document.getElementById('startScreen').style.display = 'none';
