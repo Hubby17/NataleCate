@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cattura i Regali di Babbo Natale! 🎁</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            background: linear-gradient(to bottom, #8B0000, #FF0000);
+            overflow: hidden;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            color: gold;
+            text-align: center;
+            position: relative;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><path fill="%23ff0000" d="M12 2L2 12h3v8h14v-8h3z"/></svg>'), auto;
+        }
+        h1 {
+            font-size: 3.5em;
+            text-shadow: 0 0 20px white, 0 0 40px gold;
+            margin: 20px 0;
+            animation: glow 1.5s infinite alternate;
+        }
+        @keyframes glow {
+            from { text-shadow: 0 0 15px gold; }
+            to { text-shadow: 0 0 40px white, 0 0 60px gold; }
+        }
+        #gameArea {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            border-bottom: 10px solid gold;
+        }
+        .gift {
+            position: absolute;
+            font-size: 50px;
+            pointer-events: auto;
+            animation: fall linear;
+            user-select: none;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh); }
+        }
+        #score {
+            font-size: 3em;
+            margin: 10px;
+        }
+        #timer {
+            font-size: 2.5em;
+            margin: 10px;
+        }
+        #startScreen, #winScreen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: white;
+        }
+        #startScreen button, #winScreen button {
+            margin-top: 30px;
+            padding: 20px 40px;
+            font-size: 2em;
+            background: gold;
+            color: red;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+
+        /* Overlay video FULLSCREEN */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: #000;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border: none;
+            box-shadow: none;
+        }
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 60px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 101;
+            text-shadow: 0 0 20px red;
+        }
+
+        /* Neve */
+        canvas#snow { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 10; }
+    </style>
+</head>
+<body>
+
+    <!-- Schermata iniziale -->
+    <div id="startScreen">
+        <h1>🎅 Cattura i Regali! 🎁</h1>
+        <p style="font-size:2em;">Clicca o tocca i pacchi regalo che cadono!<br>Raccogline <strong>20</strong> in <strong>15 secondi</strong> per vedere Babbo Natale!</p>
+        <button onclick="startGame()">Inizia il Gioco! 🎄</button>
+    </div>
+
+    <!-- Schermata vittoria -->
+    <div id="winScreen" style="display:none;">
+        <h1>🎉 Complimenti! Hai vinto! 🎉</h1>
+        <p style="font-size:2em;">Babbo Natale sta arrivando...</p>
+    </div>
+
+    <canvas id="snow"></canvas>
+
+    <h1>Cattura i Regali di Babbo Natale!</h1>
+    <div id="score">Regali raccolti: 0</div>
+    <div id="timer">Tempo: 15</div>
+
+    <div id="gameArea"></div>
+
+    <!-- Video a TUTTO SCHERMO -->
+    <div class="overlay" id="videoOverlay">
+        <div class="video-container">
+            <span class="close-btn" onclick="exitFullscreen()">✕</span>
+            <video id="natalVideo" loop playsinline>
+                <source src="B.mp4" type="video/mp4">
+            </video>
+        </div>
+    </div>
+
+    <!-- Musiche -->
+    <audio id="backgroundMusic" loop>
+        <source src="https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kevin_MacLeod/Jingle_Bells_Kevin_MacLeod/Jingle_Bells_Kevin_MacLeod.mp3" type="audio/mpeg">
+    </audio>
+
+    <audio id="trumpetSound">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-trumpet-fanfare-2294.mp3" type="audio/mpeg">
+    </audio>
+
+    <audio id="giftSound">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const bgMusic = document.getElementById('backgroundMusic');
+        const trumpet = document.getElementById('trumpetSound');
+        const giftSound = document.getElementById('giftSound');
+        const videoElement = document.getElementById('natalVideo');
+        const videoOverlay = document.getElementById('videoOverlay');
+        let score = 0;
+        let timeLeft = 15;
+        let gameInterval, timerInterval;
+        const goal = 20;  // <-- 20 regali da raccogliere
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            bgMusic.volume = 0.5;
+            bgMusic.play();
+            startSnow();
+            score = 0;
+            timeLeft = 15;
+            document.getElementById('score').textContent = `Regali raccolti: ${score}`;
+            document.getElementById('timer').textContent = `Tempo: ${timeLeft}`;
+            
+            // Regali cadono MOLTO spesso per raggiungere 20
+            gameInterval = setInterval(dropGift, 450);  // Ogni 450ms ≈ più di 2 al secondo
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').textContent = `Tempo: ${timeLeft}`;
+                if (timeLeft <= 0) endGame(false);
+            }, 1000);
+        }
+
+        function dropGift() {
+            if (timeLeft <= 0) return;
+            const gift = document.createElement('div');
+            gift.classList.add('gift');
+            gift.innerHTML = ['🎁','🎀','🔔','⭐','🎄','🦌','🧣','🍪'][Math.floor(Math.random()*8)];
+            gift.style.left = Math.random() * 90 + 5 + '%';
+            gift.style.animationDuration = Math.random() * 2 + 3.5 + 's'; // Caduta più lenta per dare tempo di cliccare
+            gift.onclick = () => catchGift(gift);
+            gift.ontouchstart = () => catchGift(gift);
+            document.getElementById('gameArea').appendChild(gift);
+            
+            setTimeout(() => {
+                if (gift.parentNode) gift.parentNode.removeChild(gift);
+            }, 7000);
+        }
+
+        function catchGift(giftElement) {
+            giftElement.remove();
+            score++;
+            document.getElementById('score').textContent = `Regali raccolti: ${score}`;
+            giftSound.currentTime = 0;
+            giftSound.play();
+            
+            if (score >= goal) endGame(true);
+        }
+
+        function endGame(won) {
+            clearInterval(gameInterval);
+            clearInterval(timerInterval);
+            if (won) {
+                document.getElementById('winScreen').style.display = 'flex';
+                setTimeout(() => {
+                    document.getElementById('winScreen').style.display = 'none';
+                    trumpet.play();
+                    launchConfetti();
+                    showFullscreenVideo();
+                }, 2000);
+            } else {
+                alert('Tempo scaduto! Riprova 😊');
+                document.getElementById('startScreen').style.display = 'flex';
+            }
+        }
+
+        // Video a tutto schermo
+        function showFullscreenVideo() {
+            videoOverlay.style.display = 'flex';
+            videoElement.play();
+
+            if (videoOverlay.requestFullscreen) {
+                videoOverlay.requestFullscreen();
+            } else if (videoOverlay.webkitRequestFullscreen) {
+                videoOverlay.webkitRequestFullscreen();
+            } else if (videoOverlay.msRequestFullscreen) {
+                videoOverlay.msRequestFullscreen();
+            }
+        }
+
+        function exitFullscreen() {
+            videoElement.pause();
+            videoOverlay.style.display = 'none';
+
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        }
+
+        // Coriandoli esplosivi
+        function launchConfetti() {
+            confetti({ particleCount: 500, spread: 120, origin: { y: 0.5 }, gravity: 2, startVelocity: 60 });
+            confetti({ particleCount: 300, angle: 60, spread: 100, origin: { x: 0 }, gravity: 2, startVelocity: 70 });
+            confetti({ particleCount: 300, angle: 120, spread: 100, origin: { x: 1 }, gravity: 2, startVelocity: 70 });
+        }
+
+        // Neve
+        function startSnow() {
+            const canvas = document.getElementById('snow');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const flakes = [];
+            for (let i = 0; i < 120; i++) {
+                flakes.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    r: Math.random() * 4 + 1,
+                    speed: Math.random() * 2 + 1
+                });
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                flakes.forEach(f => {
+                    ctx.moveTo(f.x, f.y);
+                    ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+                    f.y += f.speed;
+                    f.x += Math.sin(f.y / 30) * 0.5;
+                    if (f.y > canvas.height) f.y = -10;
+                });
+                ctx.fill();
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+    </script>
+</body>
+</html>
